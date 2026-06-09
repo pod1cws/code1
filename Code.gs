@@ -669,9 +669,12 @@ function getResolvedDoubt(doubtId) {
     const sheet = ss.getSheetByName('Resolved');
     const data  = sheet.getDataRange().getValues();
     const headers = data[0];
+
     for (let i = 1; i < data.length; i++) {
       if (data[i][0].toString() === doubtId.toString()) {
         const obj = {};
+
+        // Map by header name (existing behaviour)
         headers.forEach((h, idx) => {
           let val = data[i][idx];
           if (val instanceof Date) val = val.toISOString();
@@ -679,6 +682,12 @@ function getResolvedDoubt(doubtId) {
           else val = val.toString();
           obj[h.toString().trim()] = val;
         });
+
+        // Also map by guaranteed column index so the dashboard
+        // never breaks due to header name/capitalisation mismatches
+        obj['_newScenario']       = (data[i][24] || '').toString().trim(); // col 23 = Is this a new scenario for DCR
+        obj['_l0AreaImprovement'] = (data[i][25] || '').toString().trim(); // col 24 = L0 Area of improvement
+
         return obj;
       }
     }
