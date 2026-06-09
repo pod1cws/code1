@@ -726,7 +726,13 @@ function updateResolvedDoubt(updateData) {
             clarification: updateData.clarification,
             finalVerdict:  updateData.providedVerdict,
             resolvedBy:    updateData.resolvedBy,
-            doubtId:       data[i][0]
+            doubtId:       data[i][0],
+            pod:           data[i][33],
+            supervisor:    data[i][34],
+            l0Improvement: updateData.l0AreaOfImprovement,  
+            additionalComments: updateData.l2AdditionalComments,
+            typeOfConsult: updateData.typeOfConsult,
+            approachValidation: updateData.l0ApproachValidation
           });
         }
         updateMeta();
