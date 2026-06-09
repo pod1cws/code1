@@ -345,11 +345,18 @@ function getUserLdap() {
 function getPodInfo(email) {
   try {
     const ss = SpreadsheetApp.openById(SHEET_ID);
-    const podSheet = ss.getSheetByName('POD'); // ← update tab name if different
+    const podSheet = ss.getSheetByName('POD');
     if (!podSheet) return { pod: '', supervisor: '' };
+
+    // Extract LDAP from the email — POD sheet stores LDAPs, not full emails
+    const emailLdap = email.toString().trim().toLowerCase().split('@')[0];
+
     const data = podSheet.getDataRange().getValues();
     for (let i = 1; i < data.length; i++) {
-      if (data[i][0].toString().trim().toLowerCase() === email.trim().toLowerCase()) {
+      const rowVal = data[i][0].toString().trim().toLowerCase();
+      // Match against LDAP directly (e.g. "yishin")
+      // Also falls back to matching full email in case you ever mix formats
+      if (rowVal === emailLdap || rowVal === email.trim().toLowerCase()) {
         return {
           pod:        data[i][1].toString().trim(),
           supervisor: data[i][2].toString().trim()
@@ -358,6 +365,7 @@ function getPodInfo(email) {
     }
     return { pod: '', supervisor: '' };
   } catch (e) {
+    Logger.log('getPodInfo ERROR: ' + e.message);
     return { pod: '', supervisor: '' };
   }
 }
@@ -637,7 +645,13 @@ function resolveDoubt(resolveData) {
       clarification: resolveData.clarification,
       finalVerdict:  resolveData.providedVerdict,
       resolvedBy:    resolveData.resolvedBy,
-      doubtId:       doubtRow[0]
+      doubtId:       doubtRow[0],
+      pod:           doubtRow[20],
+      supervisor:    doubtRow[21],
+      l0Improvement: resolveData.l0AreaOfImprovement,  
+      additionalComments: resolveData.l2AdditionalComments,
+      typeOfConsult: resolveData.typeOfConsult,
+      approachValidation: resolveData.l0ApproachValidation
     });
 
     updateMeta();
