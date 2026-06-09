@@ -17,10 +17,106 @@ function getLastUpdated() {
 
 function updateMeta() {
   try {
-    SpreadsheetApp.openById(SHEET_ID)
-      .getSheetByName('Meta').getRange('A1')
-      .setValue(new Date().toISOString());
-  } catch(e) { Logger.log('Meta update failed: ' + e.message); }
+    // Invalidate caches so next read gets fresh data
+    const cache = CacheService.getScriptCache();
+    cache.remove('team_status');
+    cache.remove('all_doubts');
+  } catch(e) {}
+
+  // ... rest of existing updateMeta() code
+  SpreadsheetApp.openById(SHEET_ID)
+    .getSheetByName('Meta').getRange('A1')
+    .setValue(new Date().toISOString());
+}
+
+// ── GENERATE RANDOM TOKEN ─────────────────────────────────────
+function generateToken() {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  let t = '';
+  for (let i = 0; i < 40; i++) t += chars.charAt(Math.floor(Math.random() * chars.length));
+  return t;
+}
+
+// ── LOGIN ─────────────────────────────────────────────────────
+
+function loginCRX(ldap, passkey) {
+  try {
+    const ss       = SpreadsheetApp.openById(SHEET_ID);
+    const authSheet= ss.getSheetByName('CRX_Auth');
+    if (!authSheet) return { success: false, error: 'CRX_Auth sheet not found.' };
+
+    const data = authSheet.getDataRange().getValues();
+    const tz   = Session.getScriptTimeZone();
+    const today= Utilities.formatDate(new Date(), tz, 'yyyy-MM-dd');
+    // var ldap = getUserLdap();
+
+    for (let i = 1; i < data.length; i++) {
+      const rowLdap = (data[i][0] || '').toString().trim().toLowerCase();
+      const rowPass = (data[i][1] || '').toString().trim();
+      if (rowLdap === ldap.trim().toLowerCase() && rowPass === passkey) {
+        // Valid — generate token and store session
+        const token        = generateToken();
+        const sessionSheet = ss.getSheetByName('CRX_Sessions');
+        const sessions = sessionSheet.getDataRange().getValues();
+        // Add inside loginCRX(), after getting sessionSheet
+        const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 7);
+        const cutoffStr = Utilities.formatDate(cutoff, tz, 'yyyy-MM-dd');
+        const oldRows = [];
+        for (let j = 1; j < sessions.length; j++) {
+          let sd = sessions[j][2];
+          sd = sd instanceof Date ? Utilities.formatDate(sd, tz, 'yyyy-MM-dd') : sd.toString().substring(0,10);
+          if (sd < cutoffStr) oldRows.push(j + 1);
+        }
+        for (let k = oldRows.length - 1; k >= 0; k--) sessionSheet.deleteRow(oldRows[k]);
+        if (sessionSheet) {
+          // Remove any existing today-sessions for this member
+          const rows = sessionSheet.getDataRange().getValues();
+          const toDelete = [];
+          for (let j = 1; j < rows.length; j++) {
+            let rd = rows[j][2];
+            rd = rd instanceof Date
+              ? Utilities.formatDate(rd, tz, 'yyyy-MM-dd')
+              : rd.toString().substring(0, 10);
+            if (rows[j][0].toString().trim().toLowerCase() === ldap.trim().toLowerCase() && rd === today)
+              toDelete.push(j + 1);
+          }
+          for (let k = toDelete.length - 1; k >= 0; k--) sessionSheet.deleteRow(toDelete[k]);
+          sessionSheet.appendRow([data[i][0].toString().trim(), token, today]);
+        }
+        return { success: true, token, member: data[i][0].toString().trim() };
+      }
+    }
+    return { success: false, error: 'Invalid LDAP or passkey. Please try again.' };
+  } catch (err) {
+    Logger.log('loginCRX ERROR: ' + err.message);
+    return { success: false, error: 'Login error: ' + err.message };
+  }
+}
+
+
+// ── VALIDATE SESSION TOKEN ────────────────────────────────────
+function validateSession(token) {
+  try {
+    const ss           = SpreadsheetApp.openById(SHEET_ID);
+    const sessionSheet = ss.getSheetByName('CRX_Sessions');
+    if (!sessionSheet) return false;
+    const tz    = Session.getScriptTimeZone();
+    const today = Utilities.formatDate(new Date(), tz, 'yyyy-MM-dd');
+    const data  = sessionSheet.getDataRange().getValues();
+    for (let i = 1; i < data.length; i++) {
+      if ((data[i][1] || '').toString().trim() === token.toString().trim()) {
+        let rd = data[i][2];
+        rd = rd instanceof Date
+          ? Utilities.formatDate(rd, tz, 'yyyy-MM-dd')
+          : rd.toString().substring(0, 10);
+        return rd === today;
+      }
+    }
+    return false;
+  } catch (err) {
+    Logger.log('validateSession ERROR: ' + err.message);
+    return false;
+  }
 }
 
 // ── Static arrays (no longer from Config sheet) ──────────────
@@ -152,7 +248,7 @@ function doGet(e) {
             <p class="msg">This page is restricted to <strong>CRX team members</strong> only.</p>
             <p class="msg">If you believe this is a mistake, contact your supervisor.</p>
             <div class="email-badge">Signed in as: ${auth.email || 'unknown'}</div><br>
-            <a class="btn" href="${ScriptApp.getService().getUrl()}?page=l0">Go to L0 Form →</a>
+            <a class="btn" href="https://script.google.com/a/macros/google.com/s/AKfycbyEqQTlEWrVtAqtDjIYH27ZtYoCklzAHwt0yQ_Vk4Dr2jO0LIsp5_QZOMHrZl69kN3tAw/exec?page=crx?page=l0">Go to L0 Form →</a>
           </div>
         </body></html>
       `).setTitle('Access Denied — CRX Doubt Management');
@@ -190,7 +286,7 @@ function checkCRXAccess() {
     const userLdap  = userEmail.split('@')[0].toLowerCase();
 
     const ss     = SpreadsheetApp.openById(SHEET_ID);
-    const config = ss.getSheetByName('Config');
+    const config = ss.getSheetByName('Access');
     const data   = config.getDataRange().getValues();
 
     for (let i = 1; i < data.length; i++) {
@@ -227,6 +323,11 @@ function getConfig() {
 
 function getUserEmail() {
   try { return Session.getActiveUser().getEmail() || ''; }
+  catch (e) { return ''; }
+}
+
+function getUserLdap() {
+  try { return Session.getActiveUser().getEmail().split('@')[0].toLowerCase() || ''; }
   catch (e) { return ''; }
 }
 
@@ -277,7 +378,7 @@ function submitDoubt(formData) {
     const violationsStr = Array.isArray(formData.violations)
       ? formData.violations.join(', ') : formData.violations;
 
-    const podInfo = getPodInfo(formData.l0Name);
+    const podInfo = getPodInfo(formData.l0Email);
 
     doubtsSheet.appendRow([
       doubtId,                       // 0
@@ -341,7 +442,42 @@ function submitDoubt(formData) {
 
 
 // ── MODIFIED getDoubts — last 30 days only ────────────────────
-function getDoubts() {
+// function getDoubts() {
+//   try {
+//     const ss    = SpreadsheetApp.openById(SHEET_ID);
+//     const sheet = ss.getSheetByName('Doubts');
+//     if (!sheet) return [];
+//     const data = sheet.getDataRange().getValues();
+//     if (data.length <= 1) return [];
+//     const headers = data[0];
+
+//     const cutoff = new Date();
+//     cutoff.setDate(cutoff.getDate() - 30); // 30-day window
+
+//     return data.slice(1)
+//       .filter(row => {
+//         const d = row[1] instanceof Date ? row[1] : new Date(row[1]);
+//         return !isNaN(d) && d >= cutoff;
+//       })
+//       .map(row => {
+//         const obj = {};
+//         headers.forEach((h, i) => {
+//           const key = h.toString().trim();
+//           let val = row[i];
+//           if (val instanceof Date) val = val.toISOString();
+//           else if (val === null || val === undefined) val = '';
+//           else val = val.toString();
+//           obj[key] = val;
+//         });
+//         return obj;
+//       });
+//   } catch (err) {
+//     Logger.log('getDoubts ERROR: ' + err.message);
+//     return [];
+//   }
+// }
+
+function _computeDoubts() {
   try {
     const ss    = SpreadsheetApp.openById(SHEET_ID);
     const sheet = ss.getSheetByName('Doubts');
@@ -374,6 +510,17 @@ function getDoubts() {
     Logger.log('getDoubts ERROR: ' + err.message);
     return [];
   }
+}
+
+function getDoubts() {
+  const cache  = CacheService.getScriptCache();
+  const cached = cache.get('all_doubts');
+  if (cached) {
+    try { return JSON.parse(cached); } catch(e) {}
+  }
+  const result = _computeDoubts(); // your existing logic
+  try { cache.put('all_doubts', JSON.stringify(result), 10); } catch(e) {}
+  return result;
 }
 
 // ── ASSIGN DOUBT ──────────────────────────────────────────────
@@ -578,12 +725,25 @@ function updateResolvedDoubt(updateData) {
   }
 }
 
-
-// ── GET TEAM STATUS ──────────────────────────────────────────
+// ---------GET TEAM STATUS -------------------------
 function getTeamStatus() {
+  const cache = CacheService.getScriptCache();
+  const cached = cache.get('team_status');
+  if (cached) {
+    try { return JSON.parse(cached); } catch(e) {}
+  }
+
+  const result = _computeTeamStatus(); // rename your existing logic to this
+
+  try { cache.put('team_status', JSON.stringify(result), 15); } catch(e) {}
+  return result;
+}
+
+function _computeTeamStatus() {
   try {
     const ss      = SpreadsheetApp.openById(SHEET_ID);
-    const today   = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd');
+    const tz    = Session.getScriptTimeZone();
+    const today = Utilities.formatDate(new Date(), tz, 'yyyy-MM-dd');
 
     // All CRX members from Config
     const cfgData = ss.getSheetByName('Config').getDataRange().getValues();
@@ -599,13 +759,15 @@ function getTeamStatus() {
     const todayPres = {};
     for (let i = 1; i < presData.length; i++) {
       let rd = presData[i][0];
-      rd = rd instanceof Date
-        ? Utilities.formatDate(rd, Session.getScriptTimeZone(), 'yyyy-MM-dd')
-        : rd.toString().split('T')[0];
-      if (rd === today) {
+      // Handle both Date objects (old rows) and string dates (new rows)
+      let rdStr = rd instanceof Date
+        ? Utilities.formatDate(rd, tz, 'yyyy-MM-dd')
+        : rd.toString().substring(0, 10); // "yyyy-MM-dd" prefix
+
+      if (rdStr === today) {
         todayPres[presData[i][1].toString().trim()] = {
-          status:     presData[i][2].toString().trim().toLowerCase(),
-          customNote: presData[i][3] ? presData[i][3].toString().trim() : ''
+        status:     presData[i][2].toString().trim().toLowerCase(),
+        customNote: presData[i][3] ? presData[i][3].toString().trim() : ''
         };
       }
     }
@@ -648,30 +810,105 @@ function getTeamStatus() {
 }
 
 
+// ── GET TEAM STATUS ──────────────────────────────────────────
+// function getTeamStatus() {
+//   try {
+//     const ss      = SpreadsheetApp.openById(SHEET_ID);
+//     const tz    = Session.getScriptTimeZone();
+//     const today = Utilities.formatDate(new Date(), tz, 'yyyy-MM-dd');
+
+//     // All CRX members from Config
+//     const cfgData = ss.getSheetByName('Config').getDataRange().getValues();
+//     const crxMembers = [];
+//     for (let i = 1; i < cfgData.length; i++) {
+//       if (cfgData[i][0] && cfgData[i][0].toString().trim())
+//         crxMembers.push(cfgData[i][0].toString().trim());
+//     }
+
+//     // Today's presence from Presence sheet
+//     const presSheet = ss.getSheetByName('Presence');
+//     const presData  = presSheet ? presSheet.getDataRange().getValues() : [];
+//     const todayPres = {};
+//     for (let i = 1; i < presData.length; i++) {
+//       let rd = presData[i][0];
+//       // Handle both Date objects (old rows) and string dates (new rows)
+//       let rdStr = rd instanceof Date
+//         ? Utilities.formatDate(rd, tz, 'yyyy-MM-dd')
+//         : rd.toString().substring(0, 10); // "yyyy-MM-dd" prefix
+
+//       if (rdStr === today) {
+//         todayPres[presData[i][1].toString().trim()] = {
+//         status:     presData[i][2].toString().trim().toLowerCase(),
+//         customNote: presData[i][3] ? presData[i][3].toString().trim() : ''
+//         };
+//       }
+//     }
+
+//     // Active doubt assignments (Status === 'Assigned')
+//     const dData   = ss.getSheetByName('Doubts').getDataRange().getValues();
+//     const active  = {};
+//     for (let i = 1; i < dData.length; i++) {
+//       if (dData[i][17].toString().trim() === 'Assigned') {
+//         const assignee = dData[i][18].toString().trim();
+//         if (assignee) {
+//           if (!active[assignee]) active[assignee] = [];
+//           active[assignee].push(dData[i][0].toString());
+//         }
+//       }
+//     }
+
+//     const team = crxMembers.map(member => {
+//       const p  = todayPres[member] || { status: 'absent', customNote: '' };
+//       const ad = active[member]    || [];
+//       const isPresent       = p.status === 'present';
+//       const isBusyWithDoubt = ad.length > 0;
+//       const isBusyOther     = isPresent && p.customNote !== '';
+//       return {
+//         member,
+//         isPresent,
+//         customNote:     p.customNote,
+//         activeDoubts:   ad,
+//         isBusyWithDoubt,
+//         isBusyOther,
+//         isAvailable: isPresent && !isBusyWithDoubt && !isBusyOther
+//       };
+//     });
+
+//     return { team, today };
+//   } catch (err) {
+//     Logger.log('getTeamStatus ERROR: ' + err.message);
+//     return { team: [], today: '' };
+//   }
+// }
+
+
 // ── MARK PRESENCE ─────────────────────────────────────────────
 function markPresence(memberName, status, customNote) {
   try {
     const ss    = SpreadsheetApp.openById(SHEET_ID);
     const sheet = ss.getSheetByName('Presence');
-    if (!sheet) return { success: false, error: 'Presence sheet not found. Create it first.' };
+    if (!sheet) return { success: false, error: 'Presence sheet not found.' };
 
-    const today    = new Date();
-    const todayStr = Utilities.formatDate(today, Session.getScriptTimeZone(), 'yyyy-MM-dd');
-    const data     = sheet.getDataRange().getValues();
+    const tz       = Session.getScriptTimeZone();
+    const todayStr = Utilities.formatDate(new Date(), tz, 'yyyy-MM-dd'); // store as string, not Date
 
+    const data = sheet.getDataRange().getValues();
     for (let i = 1; i < data.length; i++) {
+      // Handle both Date objects and string dates already in sheet
       let rd = data[i][0];
-      rd = rd instanceof Date
-        ? Utilities.formatDate(rd, Session.getScriptTimeZone(), 'yyyy-MM-dd')
-        : rd.toString().split('T')[0];
-      if (rd === todayStr && data[i][1].toString().trim() === memberName.trim()) {
+      let rdStr = rd instanceof Date
+        ? Utilities.formatDate(rd, tz, 'yyyy-MM-dd')
+        : rd.toString().substring(0, 10);
+
+      if (rdStr === todayStr && data[i][1].toString().trim() === memberName.trim()) {
         sheet.getRange(i + 1, 3).setValue(status);
         sheet.getRange(i + 1, 4).setValue(customNote || '');
         updateMeta();
         return { success: true };
       }
     }
-    sheet.appendRow([today, memberName, status, customNote || '']);
+    // Insert new row with string date so comparison is consistent
+    sheet.appendRow([todayStr, memberName, status, customNote || '']);
     updateMeta();
     return { success: true };
   } catch (err) {
@@ -766,7 +1003,7 @@ function getAnalyticsData(filters) {
       // Count escalated only when CRX explicitly selected it in L2 Confirmation (col 28)
       const l2Conf = (r[28] || '').toString();
       const esc = l2Conf.split(',').some(function(v) {
-        return v.trim().toLowerCase() === 'Escalate';
+        return v.trim().toLowerCase() === 'escalated';
       });
       if (!msMap[m]) msMap[m] = { total:0, easy:0, medium:0, complex:0, escalated:0, aht:0, wait:0 };
       msMap[m].total++;
@@ -806,398 +1043,137 @@ function getAnalyticsData(filters) {
   }
 }
 
-// // ============================================================
-// // CODE.GS — Main Router & Core Data Operations
-// // ============================================================
 
-// const SHEET_ID = '1MxVhInv31dg10ZaQRidOv6gUStExG3wf-r8SpsysZ0c'; // ← Paste your Sheet ID
-// const CHAT_WEBHOOK_URL = 'YOUR_GOOGLE_CHAT_WEBHOOK_URL_HERE'; // ← Paste webhook URL
+function exportResolvedCSV(dateFrom, dateTo) {
+  try {
+    const ss    = SpreadsheetApp.openById(SHEET_ID);
+    const sheet = ss.getSheetByName('Resolved');
+    const data  = sheet.getDataRange().getValues();
+    if (data.length <= 1) return '';
 
-// // ── Entry Point ──────────────────────────────────────────────
-// function doGet(e) {
-//   const page = e.parameter.page || 'l0';
-//   let template;
+    const tz   = Session.getScriptTimeZone();
+    const from = dateFrom ? new Date(dateFrom)              : null;
+    const to   = dateTo   ? new Date(dateTo + 'T23:59:59') : null;
 
-//   if (page === 'l0') {
-//     template = HtmlService.createTemplateFromFile('l0-form');
-//   } else if (page === 'crx') {
-//     template = HtmlService.createTemplateFromFile('crx-dashboard');
-//   } else if (page === 'analytics') {
-//     template = HtmlService.createTemplateFromFile('analytics-dashboard');
-//   } else {
-//     return HtmlService.createHtmlOutput('<h2>Page not found</h2>');
-//   }
+    // Filter rows by Resolved_At (index 32)
+    const rows = [data[0]]; // always include header
+    for (let i = 1; i < data.length; i++) {
+      let resolvedAt = data[i][32];
+      if (!(resolvedAt instanceof Date)) resolvedAt = new Date(resolvedAt.toString());
+      if (isNaN(resolvedAt)) continue;
+      if (from && resolvedAt < from) continue;
+      if (to   && resolvedAt > to)   continue;
+      rows.push(data[i]);
+    }
 
-//   return template.evaluate()
-//     .setTitle('CRX Doubt Management')
-//     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
-//     .addMetaTag('viewport', 'width=device-width, initial-scale=1');
-// }
+    // Convert to CSV with proper escaping
+    return rows.map(function(row) {
+      return row.map(function(cell) {
+        let val = cell instanceof Date
+          ? Utilities.formatDate(cell, tz, 'yyyy-MM-dd HH:mm:ss')
+          : (cell === null || cell === undefined ? '' : cell.toString());
+        // Wrap in quotes if contains comma, quote, or newline
+        if (val.includes(',') || val.includes('"') || val.includes('\n')) {
+          val = '"' + val.replace(/"/g, '""') + '"';
+        }
+        return val;
+      }).join(',');
+    }).join('\n');
+  } catch (err) {
+    Logger.log('exportResolvedCSV ERROR: ' + err.message);
+    return '';
+  }
+}
 
-// // Include HTML partials
-// function include(filename) {
-//   return HtmlService.createHtmlOutputFromFile(filename).getContent();
-// }
-
-// // ── Config Helpers ────────────────────────────────────────────
-// function getConfig() {
-//   const ss = SpreadsheetApp.openById(SHEET_ID);
-//   const configSheet = ss.getSheetByName('Config');
-//   const data = configSheet.getDataRange().getValues();
-
-//   const crxMembers = [];
-//   const queueNames = [];
-//   const violations = [];
-
-//   // Skip header row (row 0), read from row 1 onwards
-//   for (let i = 1; i < data.length; i++) {
-//     if (data[i][0] && data[i][0].toString().trim() !== '') 
-//       crxMembers.push(data[i][0].toString().trim());   // Column A
-
-//     if (data[i][1] && data[i][1].toString().trim() !== '') 
-//       queueNames.push(data[i][1].toString().trim());   // Column B ← WAS [2], now [1]
-
-//     if (data[i][2] && data[i][2].toString().trim() !== '') 
-//       violations.push(data[i][2].toString().trim());   // Column C ← WAS [4], now [2]
-//   }
-
-//   Logger.log('CRX Members: ' + crxMembers.length);
-//   Logger.log('Queue Names: ' + queueNames.length);
-//   Logger.log('Violations: ' + violations.length);
-
-//   return { crxMembers, queueNames, violations };
-// }
-
-// //get Email Automatically
-// function getUserEmail() {
+// ── CHECK IF ANY CRX MEMBER IS AVAILABLE ─────────────────────
+// Called by L0 form on page load — lightweight availability check
+// function checkCRXAvailability() {
 //   try {
-//     return Session.getActiveUser().getEmail() || "";
-//   } catch (e) {
-//     return ""; // Fallback if browser permission scopes restrict it
-//   }
-// }
-
-// // ── SUBMIT DOUBT (called from L0 form) ───────────────────────
-// function submitDoubt(formData) {
-//   try {
-//     const ss = SpreadsheetApp.openById(SHEET_ID);
-//     const doubtsSheet = ss.getSheetByName('Doubts');
-
-//     const doubtId = 'D-'+Date.now();
-//     const submittedAt = new Date().toLocaleString();;
-//     const violationsStr = formData.violations.join(', ');
-
-//     doubtsSheet.appendRow([
-//       doubtId,
-//       submittedAt,
-//       formData.extensionPickupTime,
-//       formData.l0Name,
-//       formData.l0Email,
-//       formData.extensionId,
-//       formData.revisionId,            // col G - revision_id
-//       formData.taskId,                // col H - task_id
-//       formData.itemsFunctionality,    // col I - Item's Functionality
-//       formData.queueName,             // col J - Queue Name
-//       formData.category,              // col K - Category
-//       formData.subCategory,           // col L - Sub Category
-//       formData.stageOfQuery,          // col M - Stage of query
-//       formData.docLink, 
-//       formData.doubtDetails,
-//       violationsStr,
-//       'Open',
-//       '',  // Assigned_To
-//       ''   // Assigned_At
-//     ]);
-
-//     // Send Google Chat notification
-//     sendChatNotification(doubtId, formData,doubtId);
-
-//     return { success: true, doubtId: doubtId };
-//   } catch (err) {
-//     return { success: false, error: err.message };
-//   }
-// }
-
-// // ── GET ALL DOUBTS (for CRX dashboard) ───────────────────────
-// function getDoubts() {
-//   try {
-//     const ss = SpreadsheetApp.openById(SHEET_ID);
-//     const sheet = ss.getSheetByName('Doubts');
-
-//     if (!sheet) {
-//       Logger.log('Doubts sheet not found. Available sheets: ' + 
-//         ss.getSheets().map(s => s.getName()).join(', '));
-//       return [];
-//     }
-
-//     const data = sheet.getDataRange().getValues();
-//     Logger.log('Doubts rows: ' + data.length);
-
-//     if (data.length <= 1) return [];
-
-//     const headers = data[0];
-    
-//     return data.slice(1).map(row => {
-//       const obj = {};
-//       headers.forEach((h, i) => {
-//         const key = h.toString().trim(); // trim spaces from header names
-//         let val = row[i];
-        
-//         // Convert Date objects to ISO string so they serialize correctly
-//         if (val instanceof Date) {
-//           val = val.toISOString();
-//         } else if (val === null || val === undefined) {
-//           val = '';
-//         } else {
-//           val = val.toString();
-//         }
-        
-//         obj[key] = val;
-//       });
-//       return obj;
-//     });
-
-//   } catch (err) {
-//     Logger.log('getDoubts ERROR: ' + err.message);
-//     return []; // never return null
-//   }
-// }
-
-// // ── ASSIGN DOUBT ──────────────────────────────────────────────
-// function assignDoubt(doubtId, memberName) {
-//   try {
-//     const ss = SpreadsheetApp.openById(SHEET_ID);
-//     const sheet = ss.getSheetByName('Doubts');
-//     const data = sheet.getDataRange().getValues();
-
-//     for (let i = 1; i < data.length; i++) {
-//       if (data[i][0] === doubtId) {
-//         sheet.getRange(i + 1, 18).setValue(memberName);        // Assigned_To (col K)
-//         sheet.getRange(i + 1, 19).setValue(new Date().toLocaleString()); // Assigned_At (col L)
-//         sheet.getRange(i + 1, 17).setValue('Assigned');        // Status (col J)
-//         return { success: true };
-//       }
-//     }
-//     return { success: false, error: 'Doubt not found' };
-//   } catch (err) {
-//     return { success: false, error: err.message };
-//   }
-// }
-
-// // ── RESOLVE DOUBT ─────────────────────────────────────────────
-// function resolveDoubt(resolveData) {
-//   try {
-//     const ss = SpreadsheetApp.openById(SHEET_ID);
-//     const doubtsSheet = ss.getSheetByName('Doubts');
-//     const resolvedSheet = ss.getSheetByName('Resolved');
-//     const data = doubtsSheet.getDataRange().getValues();
-
-//     let doubtRow = null;
-//     let rowIndex = -1;
-
-//     for (let i = 1; i < data.length; i++) {
-//       if (data[i][0] === resolveData.doubtId) {
-//         doubtRow = data[i];
-//         rowIndex = i + 1;
-//         break;
-//       }
-//     }
-
-//     if (!doubtRow) return { success: false, error: 'Doubt not found' };
-
-//     const resolvedAt = new Date().toLocaleString();
-
-//     // Log to Resolved sheet
-//     resolvedSheet.appendRow([
-//       doubtRow[0],   
-//       doubtRow[1],   // 
-//       doubtRow[2],   // 
-//       doubtRow[3],   // 
-//       doubtRow[4],   // 
-//       doubtRow[5],   // 
-//       doubtRow[6],   // 
-//       doubtRow[7],   // 
-//       doubtRow[8],   // 
-//       doubtRow[9],  //
-//       doubtRow[10],
-//       doubtRow[11],
-//       doubtRow[12],
-//       doubtRow[13],
-//       doubtRow[14],
-//       doubtRow[15],
-//       doubtRow[16],
-//       doubtRow[17],
-//       doubtRow[18],
-//       resolveData.clarification,
-//       resolveData.finalVerdict,
-//       resolveData.resolvedBy,
-//       resolvedAt
-//     ]);
-
-//     // Update status in Doubts sheet → "Resolved"
-//     doubtsSheet.getRange(rowIndex, 17).setValue('Resolved');
-
-//     // Send email to L0
-//     sendResolutionEmail({
-//       l0Name:       doubtRow[3],       // L0_Name ✓
-//       l0Email:      doubtRow[4],       // L0_Email ✓
-//       extensionId:  doubtRow[5],       // Extension_ID ✓
-//       // doubtDetails: doubtRow[14],
-//       clarification: resolveData.clarification,
-//       finalVerdict: resolveData.finalVerdict,
-//       resolvedBy: resolveData.resolvedBy,
-//       doubtId: doubtRow[0]
-//     });
-
-//     return { success: true };
-//   } catch (err) {
-//     return { success: false, error: err.message };
-//   }
-// }
-
-// // ── ANALYTICS DATA ────────────────────────────────────────────
-// // ── ANALYTICS DATA ────────────────────────────────────────────
-// function getAnalyticsData(filters) {
-//   try {
-//     const ss = SpreadsheetApp.openById(SHEET_ID);
-//     const resolvedSheet = ss.getSheetByName('Resolved');
-//     const doubtsSheet   = ss.getSheetByName('Doubts');
-
-//     const resolvedData = resolvedSheet.getDataRange().getValues();
-//     const doubtsData   = doubtsSheet.getDataRange().getValues();
-
-//     const allDoubts  = doubtsData.length > 1 ? doubtsData.slice(1) : [];
-//     const totalOpen      = allDoubts.filter(r => r[16].toString().trim() === 'Open').length;
-//     const totalAssigned = allDoubts.filter(r => r[16].toString().trim() === 'Assigned').length;
-//     const totalResolved = resolvedData.length > 1 ? resolvedData.length - 1 : 0;
-//     const total         = allDoubts.length;
-
-//     // ── FIX: Map Doubt_ID -> Violations from Doubts sheet (index 7) ──
-//     const doubtIdToViolations = {};
-//     allDoubts.forEach(r => {
-//       const dId = r[0].toString().trim();
-//       if (dId) {
-//         doubtIdToViolations[dId] = r[15] ? r[15].toString().trim() : '';
-//       }
-//     });
-
-//     if (resolvedData.length <= 1) {
-//       return {
-//         summary: { total, totalOpen, totalAssigned, totalResolved: 0 },
-//         byViolation: {}, byCRXMember: {}, trend: []
-//       };
-//     }
-
-//     const resolvedRows = resolvedData.slice(1);
-
-//     const dateFrom = filters && filters.dateFrom ? new Date(filters.dateFrom) : null;
-//     const dateTo   = filters && filters.dateTo ? new Date(filters.dateTo + 'T23:59:59') : null;
-//     const memberFilter    = filters && filters.crxMember !== 'All' ? filters.crxMember : null;
-//     const violationFilter = filters && filters.violation !== 'All' ? filters.violation.toLowerCase().trim() : null;
-
-//     // ── Filter resolved rows ──
-//     const filtered = resolvedRows.filter(r => {
-//       // Index 13 = Assigned_At in Resolved tab
-//       let metricDate = r[22];
-//       if (!(metricDate instanceof Date)) {
-//         metricDate = new Date(metricDate);
-//       }
-
-//       if (isNaN(metricDate)) return false;
-//       if (dateFrom && metricDate < dateFrom) return false;
-//       if (dateTo   && metricDate > dateTo)   return false;
-
-//       // Index 12 = L2 LDAP (Resolved By)
-//       if (memberFilter) {
-//         const member = r[21].toString().trim();
-//         if (member !== memberFilter) return false;
-//       }
-
-//       // FIX: Use cross-reference lookup map for the filters
-//       if (violationFilter) {
-//         const doubtId = r[0].toString().trim();
-//         const viols = (doubtIdToViolations[doubtId] || '').toLowerCase();
-//         if (!viols.includes(violationFilter)) return false;
-//       }
-
-//       return true;
-//     });
-
-//     // ── FIX: Populate metrics using actual mapped Violations ──
-//     const byViolation = {};
-//     filtered.forEach(r => {
-//       const doubtId = r[0].toString().trim();
-//       const violationsStr = doubtIdToViolations[doubtId] || '';
-//       if (violationsStr) {
-//         const viols = violationsStr.split(',');
-//         viols.forEach(v => {
-//           v = v.trim();
-//           if (v) byViolation[v] = (byViolation[v] || 0) + 1;
-//         });
-//       }
-//     });
-
-//     // ── By CRX Member ──
-//     const byCRXMember = {};
-//     filtered.forEach(r => {
-//       const member = r[21].toString().trim() || 'Unassigned';
-//       byCRXMember[member] = (byCRXMember[member] || 0) + 1;
-//     });
-
-//     // ── Daily Trend ──
-//     const byDate = {};
-//     filtered.forEach(r => {
-//       let d = r[22];
-//       if (d instanceof Date) {
-//         d = Utilities.formatDate(d, Session.getScriptTimeZone(), 'yyyy-MM-dd');
-//       } else {
-//         d = d.toString().split('T')[0];
-//       }
-//       if (d) byDate[d] = (byDate[d] || 0) + 1;
-//     });
-
-//     const trend = Object.entries(byDate)
-//       .sort((a, b) => a[0].localeCompare(b[0]))
-//       .map(([date, count]) => ({ date, count }));
-
+//     const result    = getTeamStatus();
+//     const available = result.team.filter(function(m) { return m.isAvailable; });
+//     const present   = result.team.filter(function(m) { return m.isPresent; });
 //     return {
-//       summary: { total, totalOpen, totalAssigned, totalResolved },
-//       byViolation,
-//       byCRXMember,
-//       trend
+//       hasAvailable:   available.length > 0,
+//       availableCount: available.length,
+//       presentCount:   present.length,
+//       totalCount:     result.team.length
 //     };
-
 //   } catch (err) {
-//     Logger.log('getAnalyticsData ERROR: ' + err.message);
-//     return {
-//       summary: { total: 0, totalOpen: 0, totalAssigned: 0, totalResolved: 0 },
-//       byViolation: {}, byCRXMember: {}, trend: []
-//     };
+//     Logger.log('checkCRXAvailability ERROR: ' + err.message);
+//     // Fail open — if something breaks, don't block L0s
+//     return { hasAvailable: true, availableCount: 1, presentCount: 1, totalCount: 1 };
 //   }
 // }
-// function testConfig() {
-//   const config = getConfig();
-//   Logger.log(JSON.stringify(config, null, 2));
-// }
 
-// function debugDoubts() {
-//   const ss = SpreadsheetApp.openById(SHEET_ID);
-  
-//   // List ALL sheet names in your spreadsheet
-//   const allSheets = ss.getSheets().map(s => s.getName());
-//   Logger.log('All sheets found: ' + JSON.stringify(allSheets));
 
-//   // Try to open Doubts sheet
-//   const sheet = ss.getSheetByName('Doubts');
-//   Logger.log('Doubts sheet found: ' + (sheet !== null));
+function checkCRXAvailability() {
+  try {
+    const ss    = SpreadsheetApp.openById(SHEET_ID);
+    const tz    = Session.getScriptTimeZone();
+    const today = Utilities.formatDate(new Date(), tz, 'yyyy-MM-dd');
 
-//   if (!sheet) return;
+    // ── 1. Count CRX members marked present today ──
+    const presSheet  = ss.getSheetByName('Presence');
+    let presentCount = 0;
+    if (presSheet) {
+      const pData = presSheet.getDataRange().getValues();
+      for (let i = 1; i < pData.length; i++) {
+        let rd = pData[i][0];
+        rd = rd instanceof Date
+          ? Utilities.formatDate(rd, tz, 'yyyy-MM-dd')
+          : rd.toString().substring(0, 10);
+        if (rd === today && pData[i][2].toString().trim().toLowerCase() === 'present') {
+          presentCount++;
+        }
+      }
+    }
 
-//   const data = sheet.getDataRange().getValues();
-//   Logger.log('Total rows including header: ' + data.length);
-//   Logger.log('Headers: ' + JSON.stringify(data[0]));
-  
-//   if (data.length > 1) {
-//     Logger.log('First data row: ' + JSON.stringify(data[1]));
-//   }
-// }
+    // Nobody present today → block regardless
+    if (presentCount === 0) {
+      return { hasAvailable: false, presentCount: 0, openCount: 0,
+               freeCount: 0, reason: 'no_present' };
+    }
+
+    // ── 2. Count doubts currently in Open status ──
+    const dSheet = ss.getSheetByName('Doubts');
+    let openCount = 0;
+    if (dSheet) {
+      const dData = dSheet.getDataRange().getValues();
+      for (let i = 1; i < dData.length; i++) {
+        if (dData[i][17].toString().trim() === 'Open') openCount++;
+      }
+    }
+
+    // ── 3. Count free members (present + no active doubt + no custom note) ──
+    let freeCount = 0;
+    try {
+      const ts = getTeamStatus();
+      freeCount = ts.team.filter(function(m) { return m.isAvailable; }).length;
+    } catch(e) {}
+
+    // ── Decision logic ────────────────────────────────────────────────────
+    // ALLOW  when: any member is free  OR  open doubts < present count
+    // BLOCK  when: no free member  AND  open doubts >= present count
+    //
+    // This means L0s can queue up to (presentCount) open doubts in total.
+    // CRX members pick from the queue as they finish existing ones.
+    const hasAvailable = freeCount > 0 || openCount < presentCount;
+
+    return {
+      hasAvailable,
+      presentCount,
+      openCount,
+      freeCount,
+      capacity: presentCount,           // max open doubts allowed at once
+      slotsLeft: Math.max(0, presentCount - openCount),
+      reason: hasAvailable ? 'available' : 'full_capacity'
+    };
+
+  } catch (err) {
+    Logger.log('checkCRXAvailability ERROR: ' + err.message);
+    // Fail open — don't block L0s due to a code error
+    return { hasAvailable: true, presentCount: 1, openCount: 0,
+             freeCount: 1, capacity: 1, slotsLeft: 1, reason: 'error_open' };
+  }
+}
+
