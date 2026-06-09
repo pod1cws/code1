@@ -541,6 +541,97 @@
       
       .dcr-link:hover { background:#d2e3fc; }
 
+      /* Export bar */
+    .export-bar {
+      display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+      background: white; border: 1px solid #e8eaed; border-radius: 10px;
+      padding: 12px 16px; margin-bottom: 12px; flex-shrink: 0;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+    }
+    .export-bar label { font-size: 12px; font-weight: 600; color: #5f6368; white-space: nowrap; }
+    .export-bar input[type="date"] {
+      padding: 6px 10px; border: 1px solid #dadce0; border-radius: 6px;
+      font-size: 13px; font-family: 'Google Sans', Arial, sans-serif; outline: none;
+    }
+    .export-bar input[type="date"]:focus { border-color: #1a73e8; }
+    .btn-export {
+      background: #34a853; color: white; border: none; padding: 7px 16px;
+      border-radius: 6px; font-size: 13px; font-weight: 500; cursor: pointer;
+      font-family: 'Google Sans', Arial, sans-serif; white-space: nowrap;
+      display: flex; align-items: center; gap: 6px; transition: background 0.15s;
+    }
+    .btn-export:hover { background: #2d9249; }
+    .btn-export:disabled { background: #ccc; cursor: not-allowed; }
+
+
+  /* ── Login Overlay ── */
+#loginOverlay {
+  position: fixed; inset: 0; background: linear-gradient(135deg, #e8f0fe 0%, #f0f4f9 100%);
+  z-index: 9999; display: flex; align-items: center; justify-content: center;
+}
+.login-card {
+  background: white; border-radius: 20px; padding: 44px 40px;
+  width: 420px; max-width: 94vw;
+  box-shadow: 0 12px 48px rgba(26,115,232,0.15), 0 2px 8px rgba(0,0,0,0.08);
+  border: 1px solid rgba(26,115,232,0.1);
+}
+.login-brand {
+  text-align: center; margin-bottom: 32px;
+}
+.login-brand-icon {
+  width: 56px; height: 56px; border-radius: 16px;
+  background: linear-gradient(135deg, #1a73e8, #1557b0);
+  display: flex; align-items: center; justify-content: center;
+  margin: 0 auto 14px; font-size: 26px;
+}
+.login-brand-title { font-size: 20px; font-weight: 600; color: #202124; margin-bottom: 4px; }
+.login-brand-sub   { font-size: 13px; color: #5f6368; }
+.login-field { margin-bottom: 18px; }
+.login-field label {
+  display: block; font-size: 11px; font-weight: 600; color: #5f6368;
+  text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 7px;
+}
+.login-input {
+  width: 100%; padding: 12px 14px; border: 1.5px solid #dadce0; border-radius: 10px;
+  font-size: 14px; font-family: 'Google Sans', Arial, sans-serif;
+  color: #202124; outline: none; transition: border-color 0.2s, box-shadow 0.2s;
+  background: white;
+}
+.login-input:focus {
+  border-color: #1a73e8;
+  box-shadow: 0 0 0 3px rgba(26,115,232,0.15);
+}
+.login-btn {
+  width: 100%; padding: 13px; margin-top: 8px;
+  background: linear-gradient(135deg, #1a73e8, #1557b0);
+  color: white; border: none; border-radius: 10px;
+  font-size: 15px; font-weight: 500; cursor: pointer;
+  font-family: 'Google Sans', Arial, sans-serif;
+  transition: opacity 0.15s, transform 0.1s;
+  letter-spacing: 0.2px;
+}
+.login-btn:hover:not(:disabled) { opacity: 0.92; transform: translateY(-1px); }
+.login-btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+.login-error {
+  display: none; margin-top: 14px; padding: 10px 14px;
+  background: #fce8e6; color: #c5221f; border-radius: 8px;
+  font-size: 13px; text-align: center;
+}
+.login-loading {
+  display: none; margin-top: 12px; text-align: center;
+  color: #5f6368; font-size: 13px;
+}
+.login-loading::before { content: ''; }
+
+/* Logout button in top bar */
+.btn-logout {
+  background: rgba(255,255,255,0.15); color: white; border: 1px solid rgba(255,255,255,0.3);
+  padding: 5px 12px; border-radius: 6px; font-size: 12px; cursor: pointer;
+  font-family: 'Google Sans', Arial, sans-serif; font-weight: 500;
+  transition: background 0.15s;
+}
+.btn-logout:hover { background: rgba(255,255,255,0.25); }
+
 
   </style>
 </head>
@@ -549,8 +640,8 @@
 <div class="top-bar">
   <div class="logo">CRX Doubt Management</div>
   <div class="nav-links">
-    <a href="https://script.google.com/a/macros/google.com/s/AKfycbyEqQTlEWrVtAqtDjIYH27ZtYoCklzAHwt0yQ_Vk4Dr2jO0LIsp5_QZOMHrZl69kN3tAw/exec?page=l0">L0 Form</a>
-    <a href="https://script.google.com/a/macros/google.com/s/AKfycbyEqQTlEWrVtAqtDjIYH27ZtYoCklzAHwt0yQ_Vk4Dr2jO0LIsp5_QZOMHrZl69kN3tAw/exec?page=analytics">Analytics</a>
+    <a href="https://script.google.com/a/macros/google.com/s/AKfycbyEqQTlEWrVtAqtDjIYH27ZtYoCklzAHwt0yQ_Vk4Dr2jO0LIsp5_QZOMHrZl69kN3tAw/exec?page=l0" target="_blank" rel="noopener noreferrer">L0 Form</a>
+    <a href="https://script.google.com/a/macros/google.com/s/AKfycbyEqQTlEWrVtAqtDjIYH27ZtYoCklzAHwt0yQ_Vk4Dr2jO0LIsp5_QZOMHrZl69kN3tAw/exec?page=analytics" target="_blank" rel="noopener noreferrer">Analytics</a>
   </div>
 </div>
 
@@ -565,6 +656,7 @@
         👥 Team Status
       </button>
       <button class="btn-refresh" onclick="loadDoubts()">↻ Refresh</button>
+      <button class="btn-refresh" onclick="doLogout()">🚨 Logout</button>
     </div>
   </div>
 
@@ -583,6 +675,23 @@
       <div><div class="val" id="cntResolved">—</div><div class="lbl">Resolved</div></div>
     </div>
   </div>
+
+  <!-- ── Export Bar ── -->
+<div class="export-bar">
+  <label>Export Resolved Sheet:</label>
+  <div style="display:flex;align-items:center;gap:6px">
+    <span style="font-size:12px;color:#5f6368">From</span>
+    <input type="date" id="exportDateFrom">
+  </div>
+  <div style="display:flex;align-items:center;gap:6px">
+    <span style="font-size:12px;color:#5f6368">To</span>
+    <input type="date" id="exportDateTo">
+  </div>
+  <button class="btn-export" id="exportBtn" onclick="exportCSV()">
+    ⬇ Export CSV
+  </button>
+  <span id="exportStatus" style="font-size:12px;color:#5f6368"></span>
+</div>
 
   <!-- ── Filters (never scrolls) ── -->
   <div class="filter-bar">
@@ -758,14 +867,14 @@
         <select id="editTypeOfConsult">
           <option value="">— Select —</option>
           <option value="easy">Easy</option>
-          <option value="medium">Medium</option>
+          <option value="medium" selected>Medium</option>
           <option value="complex">Complex</option>
         </select>
       </div>
       <div class="fg"><label>L0 Approach Validation</label>
         <select id="editL0ApproachValidation">
           <option value="">— Select —</option>
-          <option value="valid doubt">Valid Doubt</option>
+          <option value="valid doubt"selected>Valid Doubt</option>
           <option value="invalid doubt">Invalid Doubt</option>
         </select>
       </div>
@@ -775,13 +884,13 @@
       <div class="fg"><label>Escalated (lack of tools)?</label>
         <select id="editEscalatedDueToTools">
           <option value="">— Select —</option>
-          <option value="yes">Yes</option><option value="no">No</option>
+          <option value="yes">Yes</option><option value="no"selected>No</option>
         </select>
       </div>
       <div class="fg"><label>Escalation Validity</label>
         <select id="editEscalationValidity">
           <option value="">— Select —</option>
-          <option value="yes">Yes</option><option value="no">No</option>
+          <option value="yes" selected>Yes</option><option value="no">No</option>
         </select>
       </div>
     </div>
@@ -790,13 +899,13 @@
       <div class="fg"><label>Query Clear from L0?</label>
         <select id="editQueryClarity">
           <option value="">— Select —</option>
-          <option value="yes">Yes</option><option value="no">No</option>
+          <option value="yes"selected>Yes</option><option value="no">No</option>
         </select>
       </div>
       <div class="fg"><label>New Scenario for DCR?</label>
         <select id="editNewScenario">
           <option value="">— Select —</option>
-          <option value="yes">Yes</option><option value="no">No</option>
+          <option value="yes">Yes</option><option value="no" selected>No</option>
         </select>
       </div>
     </div>
@@ -860,6 +969,9 @@
       <select id="attendanceMember" style="flex:1;padding:8px 12px;border:1px solid #dadce0;border-radius:6px;font-size:13px;font-family:'Google Sans',Arial,sans-serif;outline:none">
         <option value="">— Select your name —</option>
       </select>
+      <!-- <input id="attendanceMember" style="flex:1;padding:8px 12px;border:1px solid #dadce0;border-radius:6px;font-size:13px;font-family:'Google Sans',Arial,sans-serif;outline:none">
+        
+      </input> -->
       <button class="btn-present" onclick="markPresent()">✓ Present</button>
       <button class="btn-absent"  onclick="markAbsent()">✗ Absent</button>
     </div>
@@ -885,8 +997,163 @@
 
 <div class="toast" id="toast"></div>
 
+<!-- ════════════════════════════════════
+     LOGIN OVERLAY
+════════════════════════════════════ -->
+<div id="loginOverlay">
+  <div class="login-card">
+    <div class="login-brand">
+      <div class="login-brand-icon">🔐</div>
+      <div class="login-brand-title">CRX Doubt Management</div>
+      <div class="login-brand-sub">Sign in to access the dashboard</div>
+    </div>
+
+    <div class="login-field">
+      <label>LDAP</label>
+      <input class="login-input" type="text" id="loginLdap"
+             placeholder="e.g. ajaygajula" autocomplete="username"
+             onkeydown="if(event.key==='Enter')document.getElementById('loginPasskey').focus()">
+    </div>
+
+    <div class="login-field">
+      <label>Passkey</label>
+      <input class="login-input" type="password" id="loginPasskey"
+             placeholder="Enter your passkey" autocomplete="current-password"
+             onkeydown="if(event.key==='Enter')doLogin()">
+    </div>
+
+    <button class="login-btn" id="loginBtn" onclick="doLogin()">Sign In</button>
+
+    <div class="login-error"   id="loginError"></div>
+    <div class="login-loading" id="loginLoading">Verifying credentials…</div>
+  </div>
+</div>
+
 
 <script>
+
+
+
+// ════════════════════════════════════════════
+// AUTH — must come first
+// ════════════════════════════════════════════
+const SESSION_KEY = 'crx_mgmt_v1';
+
+function getTodayStr() {
+  var d = new Date();
+  return d.getFullYear() + '-' +
+    String(d.getMonth()+1).padStart(2,'0') + '-' +
+    String(d.getDate()).padStart(2,'0');
+}
+function getStoredSession() {
+  try { return JSON.parse(localStorage.getItem(SESSION_KEY) || 'null'); }
+  catch(e) { return null; }
+}
+function storeSession(token, member) {
+  try { localStorage.setItem(SESSION_KEY, JSON.stringify({ token, member, date: getTodayStr() })); }
+  catch(e) {}
+}
+function clearSession() {
+  try { localStorage.removeItem(SESSION_KEY); } catch(e) {}
+}
+
+// Check session on load
+(function initAuth() {
+  var stored = getStoredSession();
+  if (stored && stored.token && stored.date === getTodayStr()) {
+    // Has a today-session — validate with server
+    document.getElementById('loginLoading').style.display = 'block';
+    google.script.run
+      .withSuccessHandler(function(valid) {
+        document.getElementById('loginLoading').style.display = 'none';
+        if (valid) { onAuthSuccess(stored.member); }
+        else { clearSession(); } // overlay stays visible
+      })
+      .withFailureHandler(function() {
+        document.getElementById('loginLoading').style.display = 'none';
+        // If server unreachable, fail safe — keep login overlay
+      })
+      .validateSession(stored.token);
+  }
+  // else: login overlay stays visible — user must log in
+})();
+
+var loginldap;
+  google.script.run
+    .withSuccessHandler(function(email) {
+      if (email) {
+        loginldap = document.getElementById('loginLdap');
+        loginldap.value = email.split('@')[0].toLowerCase();
+        loginldap.readOnly = true;
+        loginldap.style.backgroundColor = '#f1f3f4';
+      }
+    })
+    .withFailureHandler(err => console.warn('Email fetch failed:', err))
+    .getUserEmail();
+
+function doLogin() {
+  var ldap = document.getElementById('loginLdap').value.trim();
+  var passkey = document.getElementById('loginPasskey').value;
+  var btn     = document.getElementById('loginBtn');
+  var errDiv  = document.getElementById('loginError');
+  var loadDiv = document.getElementById('loginLoading');
+
+  errDiv.style.display = 'none';
+  if (!passkey) { showLoginError('Please enter both LDAP and passkey.'); return; }
+
+  btn.disabled = true; btn.textContent = 'Signing in…';
+  loadDiv.style.display = 'block';
+
+  google.script.run
+    .withSuccessHandler(function(result) {
+      btn.disabled = false; btn.textContent = 'Sign In';
+      loadDiv.style.display = 'none';
+      if (result.success) {
+        storeSession(result.token, result.member);
+        // document.getElementById('loginLdap').value    = '';
+        document.getElementById('loginPasskey').value = '';
+        onAuthSuccess(result.member);
+      } else {
+        showLoginError(result.error || 'Invalid credentials.');
+      }
+    })
+    .withFailureHandler(function(err) {
+      btn.disabled = false; btn.textContent = 'Sign In';
+      loadDiv.style.display = 'none';
+      showLoginError('Connection error. Please try again.');
+      console.error('Login error:', err);
+    })
+    .loginCRX(ldap, passkey);
+    
+}
+
+function showLoginError(msg) {
+  var e = document.getElementById('loginError');
+  e.textContent = msg; e.style.display = 'block';
+}
+
+function onAuthSuccess(member) {
+  document.getElementById('loginOverlay').style.display = 'none';
+  loadDoubts(); // ← start loading NOW, after auth confirmed
+}
+
+function doLogout() {
+  clearSession();
+  // Show login overlay again and reset form
+  document.getElementById('loginOverlay').style.display = 'flex';
+  // document.getElementById('loginLdap').value    = '';
+  document.getElementById('loginPasskey').value = '';
+  document.getElementById('loginError').style.display = 'none';
+  // Clear dashboard state
+  allDoubts = []; crxMembers = []; availableMembers = [];
+  document.getElementById('tableBody').innerHTML =
+    '<tr class="loading-row"><td colspan="10">Sign in to load doubts.</td></tr>';
+  document.getElementById('cntOpen').textContent     = '—';
+  document.getElementById('cntAssigned').textContent = '—';
+  document.getElementById('cntResolved').textContent = '—';
+}
+
+
 const VIOLATIONS_LIST = [
   'No Abuse Found',
   'Existing Bug',
@@ -1072,6 +1339,8 @@ function loadDoubts() {
     .getConfig();
 }
 
+
+
 function populateLdapDropdowns() {
   ['resolvedBy','editResolvedBy','attendanceMember'].forEach(function(id) {
     var sel = document.getElementById(id);
@@ -1115,8 +1384,8 @@ function renderTable() {
 
   // Build assign dropdown member list:
   // Available = present + free from team status; always include current assignee
-  const memberNames = availableMembers.length > 0 ? availableMembers : crxMembers.map(m=>m.split('|')[0].trim());
-
+  // const memberNames = availableMembers.length > 0 ? availableMembers : crxMembers.map(m=>m.split('|')[0].trim());
+  const memberNames = availableMembers;
   document.getElementById('tableBody').innerHTML = rows.map(function(d) {
     const didNum = d.Doubt_ID ? d.Doubt_ID.replace('D-','') : '';
     const doubtIdHtml = '<div class="doubt-id-cell"><div class="did-prefix">D-</div><div class="did-num">'+didNum+'</div></div>';
@@ -1312,6 +1581,8 @@ function submitEdit() {
       l2Confirmation, clarification, l2AdditionalComments, resendEmail });
 }
 
+
+
 // ── TEAM STATUS OVERLAY ──────────────────────────────────────
 function openTeamStatusOverlay() {
   document.getElementById('teamStatusOverlay').classList.add('show');
@@ -1442,9 +1713,9 @@ function checkForUpdates() {
 
 // Updates ONLY the assign dropdowns without touching any other cell
 function updateAssignDropdowns() {
-  const memberNames = availableMembers.length > 0
-    ? availableMembers
-    : crxMembers.map(m => m.split('|')[0].trim());
+  // const memberNames = availableMembers.length > 0
+  //   ? availableMembers
+  //   : crxMembers.map(m => m.split('|')[0].trim());
 
   document.querySelectorAll('.assign-select').forEach(function(sel) {
     const doubtId = sel.dataset.id;
@@ -1452,7 +1723,7 @@ function updateAssignDropdowns() {
     const currentVal = sel.value; // preserve whatever is currently selected
 
     const dropdownMembers = [...new Set([
-      ...memberNames,
+      ...availableMembers,
       ...(d && d.Assigned_To ? [d.Assigned_To] : []) // always keep current assignee
     ])];
 
@@ -1461,6 +1732,73 @@ function updateAssignDropdowns() {
         return '<option ' + (currentVal === m ? 'selected' : '') + ' value="' + m + '">' + m + '</option>';
       }).join('');
   });
+}
+
+
+
+
+// ── Initialize export date defaults (last 30 days) ───────────
+(function initExportDates() {
+  function fmt(d) {
+    return d.getFullYear() + '-' +
+      String(d.getMonth()+1).padStart(2,'0') + '-' +
+      String(d.getDate()).padStart(2,'0');
+  }
+  const today = new Date();
+  const from  = new Date(); from.setDate(from.getDate() - 30);
+  document.getElementById('exportDateTo').value   = fmt(today);
+  document.getElementById('exportDateFrom').value = fmt(from);
+})();
+
+// ── Export CSV ────────────────────────────────────────────────
+function exportCSV() {
+  const dateFrom = document.getElementById('exportDateFrom').value;
+  const dateTo   = document.getElementById('exportDateTo').value;
+
+  if (!dateFrom || !dateTo) {
+    showToast('⚠️ Please select both From and To dates', 'error'); return;
+  }
+  if (dateFrom > dateTo) {
+    showToast('⚠️ From date must be before To date', 'error'); return;
+  }
+
+  const btn    = document.getElementById('exportBtn');
+  const status = document.getElementById('exportStatus');
+  btn.disabled = true; btn.textContent = '⏳ Generating…';
+  status.textContent = '';
+
+  google.script.run
+    .withSuccessHandler(function(csvContent) {
+      btn.disabled = false; btn.textContent = '⬇ Export CSV';
+      if (!csvContent || csvContent.split('\n').length <= 1) {
+        showToast('No resolved data found for selected range', 'error');
+        status.textContent = 'No data for selected range.';
+        return;
+      }
+
+      // Count rows (minus header)
+      const rowCount = csvContent.split('\n').length - 1;
+
+      // Trigger download
+      const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url  = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href     = url;
+      link.download = 'CRX_Resolved_' + dateFrom + '_to_' + dateTo + '.csv';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      showToast('✅ Downloaded ' + rowCount + ' rows', 'success');
+      status.textContent = rowCount + ' rows exported.';
+    })
+    .withFailureHandler(function(err) {
+      btn.disabled = false; btn.textContent = '⬇ Export CSV';
+      showToast('❌ Export failed', 'error');
+      console.error('exportCSV error:', err);
+    })
+    .exportResolvedCSV(dateFrom, dateTo);
 }
 
 // Refresh available members every 5s in background
@@ -1482,7 +1820,7 @@ setInterval(function() {
 
 setInterval(updateSyncBadge, 2000);
 setInterval(checkForUpdates, 5000);
-loadDoubts();
+
 </script>
 
 </body>
